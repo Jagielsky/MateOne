@@ -1,1 +1,3 @@
-print("Hello World!")
+import chess
+
+#tutaj będzie implementacja silnika szachowego
