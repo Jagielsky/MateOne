@@ -1,5 +1,5 @@
 var config = {
-    pieceTheme: '../Data/chessboardjs-1.0.0/img/chesspieces/{piece}.svg',
+    pieceTheme: '../chessboardjs-1.0.0/img/chesspieces/{piece}.svg',
     position: 'start',
     draggable: true
 }
