@@ -1,27 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MateOne - python chess engine</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='img/wK.svg') }}" type="image/x-icon"> <!--ikona powinna być .ico-->
+    <link
+      rel="shortcut icon"
+      href="{{ url_for('static', filename='img/wK.svg') }}"
+      type="image/x-icon"
+    />
+    <!--ikona powinna być .ico-->
     <!--style-->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
     <!--skrypty-->
-    <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.js"
+      integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+      crossorigin="anonymous"
+    ></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="{{ url_for('static', filename='js/chessboard-1.0.0.min.js') }}"></script>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <div id="board" style="width: 600px"></div>
+      <div id="board" style="width: 600px"></div>
     </div>
 
     <script>
-        var pieceUrl = "{{ url_for('static', filename='img/') }}";
+      var pieceUrl = "{{ url_for('static', filename='img/') }}";
     </script>
-    
+
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-</body>
+  </body>
 </html>
