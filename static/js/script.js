@@ -22,6 +22,37 @@ function onDrop(source, target) {
   if (move === null) return "snapback";
 }
 
+function updateEvaluationBar(evaluation) {
+  const evalBar = document.getElementById('eval-bar');
+  const evalText = document.getElementById('eval-text');
+  
+  if (!evalBar || !evalText) return;
+  
+  // Clamp evaluation between -10 and +10 for display purposes
+  const clampedEval = Math.max(-10, Math.min(10, evaluation));
+  
+  // Convert evaluation to percentage (50% = equal, 0% = black winning, 100% = white winning)
+  // Use a sigmoid-like function for smooth transitions
+  const percentage = 50 + (clampedEval / 10) * 40;
+  
+  // Update the white portion of the bar
+  const whiteBar = evalBar.querySelector('.eval-white');
+  whiteBar.style.height = `${percentage}%`;
+  
+  // Update evaluation text
+  const evalDisplay = evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2);
+  evalText.textContent = evalDisplay;
+  
+  // Color the text based on evaluation
+  if (evaluation > 0.5) {
+    evalText.style.color = '#4CAF50'; // Green for white advantage
+  } else if (evaluation < -0.5) {
+    evalText.style.color = '#f44336'; // Red for black advantage
+  } else {
+    evalText.style.color = '#000'; // Black for neutral
+  }
+}
+
 function showEngineInfo(data) {
   // Find the info display in the left panel
   let infoDiv = document.getElementById('engine-info');
@@ -30,7 +61,7 @@ function showEngineInfo(data) {
     return;
   }
 
-  let infoHTML = '<h3>Engine Information</h3>';
+  let infoHTML = '<h3 style="margin-bottom: 5px;">Engine Information</h3>';
   
   if (data.error) {
     infoHTML += `<p style="color: red;"><strong>Error:</strong> ${data.error}</p>`;
@@ -39,15 +70,11 @@ function showEngineInfo(data) {
       infoHTML += `<p><strong>Engine Move:</strong> ${data.move}</p>`;
     }
     if (data.evaluation !== undefined) {
-      const evalDisplay = data.evaluation > 0 ? `+${data.evaluation}` : data.evaluation;
-      const evalColor = data.evaluation > 0 ? 'green' : data.evaluation < 0 ? 'red' : 'black';
-      infoHTML += `<p><strong>Position Evaluation:</strong> <span style="color: ${evalColor};">${evalDisplay}</span></p>`;
+      // Update the evaluation bar
+      updateEvaluationBar(data.evaluation);
     }
     if (data.search_time) {
       infoHTML += `<p><strong>Search Time:</strong> ${data.search_time}s</p>`;
-    }
-    if (data.search_depth) {
-      infoHTML += `<p><strong>Search Depth:</strong> ${data.search_depth}</p>`;
     }
     if (data.game_over) {
       infoHTML += `<p style="color: red;"><strong>Game Over!</strong></p>`;
@@ -134,7 +161,7 @@ board = Chessboard("board", config);
 document.addEventListener('DOMContentLoaded', function() {
   const container = document.querySelector('.container');
   
-  // Create a flex container to hold the left panel and board side by side
+  // Create a flex container to hold the left panel, board, and evaluation bar
   const gameContainer = document.createElement('div');
   gameContainer.style.display = 'flex';
   gameContainer.style.alignItems = 'flex-start';
@@ -165,10 +192,13 @@ document.addEventListener('DOMContentLoaded', function() {
     game.reset();
     board.start();
     
+    // Reset evaluation bar to neutral position
+    updateEvaluationBar(0);
+    
     // Clear engine info
     const infoDiv = document.getElementById('engine-info');
     if (infoDiv) {
-      infoDiv.innerHTML = '<h3>Engine Information</h3><p>Make a move to see engine analysis</p>';
+      infoDiv.innerHTML = '<h3 style="margin-bottom: 5px;">Engine Information</h3><p>Make a move to see engine analysis</p>';
     }
   });
   
@@ -217,9 +247,74 @@ document.addEventListener('DOMContentLoaded', function() {
   engineInfoDiv.style.border = '1px solid #ccc';
   engineInfoDiv.style.borderRadius = '5px';
   engineInfoDiv.style.minHeight = '150px';
-  engineInfoDiv.innerHTML = '<h3>Engine Information</h3><p>Make a move to see engine analysis</p>';
+  engineInfoDiv.innerHTML = '<h3 style="margin-bottom: 5px;">Engine Information</h3><p>Make a move to see engine analysis</p>';
   
-  // Add all elements to left panel
+  // Create evaluation bar container (to be placed on the right)
+  const evalBarContainer = document.createElement('div');
+  evalBarContainer.style.display = 'flex';
+  evalBarContainer.style.alignItems = 'center';
+  evalBarContainer.style.gap = '10px';
+  evalBarContainer.style.height = '596px'; // Match chessboard height
+  
+  // Create the evaluation bar wrapper
+  const evalBarWrapper = document.createElement('div');
+  evalBarWrapper.style.position = 'relative';
+  evalBarWrapper.style.width = '30px';
+  evalBarWrapper.style.height = '596px'; // Match chessboard height
+  evalBarWrapper.style.border = '2px solid #333';
+  evalBarWrapper.style.borderRadius = '3px';
+  evalBarWrapper.style.overflow = 'hidden';
+  
+  // Black portion (background)
+  const evalBlack = document.createElement('div');
+  evalBlack.className = 'eval-black';
+  evalBlack.style.position = 'absolute';
+  evalBlack.style.top = '0';
+  evalBlack.style.left = '0';
+  evalBlack.style.width = '100%';
+  evalBlack.style.height = '100%';
+  evalBlack.style.backgroundColor = '#000';
+  
+  // White portion (foreground)
+  const evalWhite = document.createElement('div');
+  evalWhite.className = 'eval-white';
+  evalWhite.style.position = 'absolute';
+  evalWhite.style.bottom = '0';
+  evalWhite.style.left = '0';
+  evalWhite.style.width = '100%';
+  evalWhite.style.height = '50%'; // Start at 50% (equal position)
+  evalWhite.style.backgroundColor = '#fff';
+  evalWhite.style.transition = 'height 0.3s ease';
+  
+  // Center line marker
+  const centerLine = document.createElement('div');
+  centerLine.style.position = 'absolute';
+  centerLine.style.top = '50%';
+  centerLine.style.left = '0';
+  centerLine.style.right = '0';
+  centerLine.style.height = '1px';
+  centerLine.style.backgroundColor = '#999';
+  centerLine.style.transform = 'translateY(-50%)';
+  
+  evalBarWrapper.id = 'eval-bar';
+  evalBarWrapper.appendChild(evalBlack);
+  evalBarWrapper.appendChild(evalWhite);
+  evalBarWrapper.appendChild(centerLine);
+  
+  // Evaluation text (on the right of the bar)
+  const evalText = document.createElement('div');
+  evalText.id = 'eval-text';
+  evalText.textContent = '0.00';
+  evalText.style.fontWeight = 'bold';
+  evalText.style.fontSize = '16px';
+  evalText.style.color = '#000';
+  evalText.style.minWidth = '50px';
+  evalText.style.textAlign = 'left';
+  
+  evalBarContainer.appendChild(evalBarWrapper);
+  evalBarContainer.appendChild(evalText);
+  
+  // Add all elements to left panel (without evaluation bar)
   leftPanel.appendChild(resetButton);
   leftPanel.appendChild(depthContainer);
   leftPanel.appendChild(engineInfoDiv);
@@ -234,9 +329,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const boardElement = document.getElementById('board');
   boardContainer.appendChild(boardElement);
   
-  // Assemble the layout
+  // Assemble the layout: left panel, board, evaluation bar
   gameContainer.appendChild(leftPanel);
   gameContainer.appendChild(boardContainer);
+  gameContainer.appendChild(evalBarContainer);
   
   // Replace the container content with the new layout
   container.innerHTML = '';

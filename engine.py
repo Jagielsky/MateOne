@@ -51,7 +51,7 @@ def engine_response(fen, depth=4):
         return {
             'fen': board.fen(),
             'move': str(best_move),
-            'evaluation': position_eval,
+            'evaluation': position_eval / 100.0,
             'search_time': round(search_time, 3),
             'search_depth': depth,
             'game_over': board.is_game_over(),
@@ -81,7 +81,7 @@ def get_position_analysis(fen):
         
         return {
             'fen': fen,
-            'evaluation': evaluation,
+            'evaluation': evaluation / 100.0,  # Convert to pawn units like chess.com/lichess
             'turn': 'white' if board.turn == chess.WHITE else 'black',
             'legal_moves': len(list(board.legal_moves)),
             'is_check': board.is_check(),
