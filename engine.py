@@ -4,20 +4,9 @@ from evaluation import evaluate_position
 from minimax import find_best_move
 
 def engine_response(fen, depth=4):
-    """
-    Main engine response function.
-    
-    Args:
-        fen: Current position in FEN notation
-        depth: Search depth (default 4)
-    
-    Returns:
-        Dictionary with new FEN after engine move and additional info
-    """
     try:
         board = chess.Board(fen)
         
-        # Check if game is over
         if board.is_game_over():
             return {
                 'fen': fen,
@@ -25,13 +14,11 @@ def engine_response(fen, depth=4):
                 'result': board.result()
             }
         
-        # Find the best move
         start_time = time.time()
         best_move = find_best_move(board, depth)
         search_time = time.time() - start_time
         
         if best_move is None:
-            # Fallback to random move if no move found
             legal_moves = list(board.legal_moves)
             if legal_moves:
                 best_move = legal_moves[0]
@@ -42,10 +29,8 @@ def engine_response(fen, depth=4):
                     'result': 'No legal moves'
                 }
         
-        # Make the move
         board.push(best_move)
         
-        # Evaluate the new position
         position_eval = evaluate_position(board)
         
         return {
@@ -59,29 +44,19 @@ def engine_response(fen, depth=4):
         }
     
     except Exception as e:
-        # Error handling - return original position
         return {
             'fen': fen,
             'error': str(e)
         }
 
 def get_position_analysis(fen):
-    """
-    Analyze a position without making a move.
-    
-    Args:
-        fen: Position to analyze
-    
-    Returns:
-        Dictionary with position analysis
-    """
     try:
         board = chess.Board(fen)
         evaluation = evaluate_position(board)
         
         return {
             'fen': fen,
-            'evaluation': evaluation / 100.0,  # Convert to pawn units like chess.com/lichess
+            'evaluation': evaluation / 100.0,
             'turn': 'white' if board.turn == chess.WHITE else 'black',
             'legal_moves': len(list(board.legal_moves)),
             'is_check': board.is_check(),

@@ -7,12 +7,11 @@ app = Flask(__name__)
 def index():
     return render_template('index.html')
 
-# Receive board state from frontend and return engine move
 @app.route('/fen', methods=['POST'])
 def fen():
     data = request.get_json()
     fen = data.get('fen')
-    depth = data.get('depth', 4)  # Default search depth of 4
+    depth = data.get('depth', 4)
     
     try:
         response = engine_response(fen, depth)
@@ -23,7 +22,6 @@ def fen():
             'error': f'Engine error: {str(e)}'
         }), 500
 
-# Analyze position without making a move
 @app.route('/analyze', methods=['POST'])
 def analyze():
     data = request.get_json()
