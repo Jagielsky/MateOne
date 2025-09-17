@@ -1,182 +1,167 @@
 import chess
 
+PHASE_WEIGHTS = {
+    chess.PAWN: 0,
+    chess.KNIGHT: 1,
+    chess.BISHOP: 1,
+    chess.ROOK: 2,
+    chess.QUEEN: 4,
+}
+INITIAL_COUNTS = {
+    chess.PAWN: 16,
+    chess.KNIGHT: 4,
+    chess.BISHOP: 4,
+    chess.ROOK: 4,
+    chess.QUEEN: 2,
+}
+TOTAL_PHASE = sum(PHASE_WEIGHTS[p] * INITIAL_COUNTS[p] for p in PHASE_WEIGHTS)
+
+
+def tapered_eval(board: chess.Board) -> float:
+    current_phase = TOTAL_PHASE
+    for piece_type in PHASE_WEIGHTS:
+        current_phase -= PHASE_WEIGHTS[piece_type] * (
+            len(board.pieces(piece_type, chess.WHITE))
+            + len(board.pieces(piece_type, chess.BLACK))
+        )
+    endgame_weight = max(0.0, min(1.0, current_phase / TOTAL_PHASE))
+    middlegame_weight = 1.0 - endgame_weight
+    return middlegame_weight
+
+
 PIECE_VALUES = {
-    chess.PAWN: 100,
-    chess.KNIGHT: 320,
-    chess.BISHOP: 330,
-    chess.ROOK: 500,
-    chess.QUEEN: 900,
-    chess.KING: 20000
+    chess.PAWN: (126, 208),
+    chess.KNIGHT: (781, 854),
+    chess.BISHOP: (825, 915),
+    chess.ROOK: (1276, 1380),
+    chess.QUEEN: (2538, 2682),
+    chess.KING: (0, 0),
 }
 
-PAWN_TABLE = [
-    0,  0,  0,  0,  0,  0,  0,  0,
-    50, 50, 50, 50, 50, 50, 50, 50,
-    10, 10, 20, 30, 30, 20, 10, 10,
-    5,  5, 10, 25, 25, 10,  5,  5,
-    0,  0,  0, 20, 20,  0,  0,  0,
-    5, -5,-10,  0,  0,-10, -5,  5,
-    5, 10, 10,-20,-20, 10, 10,  5,
-    0,  0,  0,  0,  0,  0,  0,  0
-]
-
-KNIGHT_TABLE = [
-    -50,-40,-30,-30,-30,-30,-40,-50,
-    -40,-20,  0,  0,  0,  0,-20,-40,
-    -30,  0, 10, 15, 15, 10,  0,-30,
-    -30,  5, 15, 20, 20, 15,  5,-30,
-    -30,  0, 15, 20, 20, 15,  0,-30,
-    -30,  5, 10, 15, 15, 10,  5,-30,
-    -40,-20,  0,  5,  5,  0,-20,-40,
-    -50,-40,-30,-30,-30,-30,-40,-50
-]
-
-BISHOP_TABLE = [
-    -20,-10,-10,-10,-10,-10,-10,-20,
-    -10,  0,  0,  0,  0,  0,  0,-10,
-    -10,  0,  5, 10, 10,  5,  0,-10,
-    -10,  5,  5, 10, 10,  5,  5,-10,
-    -10,  0, 10, 10, 10, 10,  0,-10,
-    -10, 10, 10, 10, 10, 10, 10,-10,
-    -10,  5,  0,  0,  0,  0,  5,-10,
-    -20,-10,-10,-10,-10,-10,-10,-20
-]
-
-ROOK_TABLE = [
-    0,  0,  0,  0,  0,  0,  0,  0,
-    5, 10, 10, 10, 10, 10, 10,  5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    -5,  0,  0,  0,  0,  0,  0, -5,
-    0,  0,  0,  5,  5,  0,  0,  0
-]
-
-QUEEN_TABLE = [
-    -20,-10,-10, -5, -5,-10,-10,-20,
-    -10,  0,  0,  0,  0,  0,  0,-10,
-    -10,  0,  5,  5,  5,  5,  0,-10,
-    -5,  0,  5,  5,  5,  5,  0, -5,
-    0,  0,  5,  5,  5,  5,  0, -5,
-    -10,  5,  5,  5,  5,  5,  0,-10,
-    -10,  0,  5,  0,  0,  0,  0,-10,
-    -20,-10,-10, -5, -5,-10,-10,-20
-]
-
-KING_TABLE_MIDDLEGAME = [
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -30,-40,-40,-50,-50,-40,-40,-30,
-    -20,-30,-30,-40,-40,-30,-30,-20,
-    -10,-20,-20,-20,-20,-20,-20,-10,
-    20, 20,  0,  0,  0,  0, 20, 20,
-    20, 30, 10,  0,  0, 10, 30, 20
-]
-
-KING_TABLE_ENDGAME = [
-    -50,-40,-30,-20,-20,-30,-40,-50,
-    -30,-20,-10,  0,  0,-10,-20,-30,
-    -30,-10, 20, 30, 30, 20,-10,-30,
-    -30,-10, 30, 40, 40, 30,-10,-30,
-    -30,-10, 30, 40, 40, 30,-10,-30,
-    -30,-10, 20, 30, 30, 20,-10,-30,
-    -30,-30,  0,  0,  0,  0,-30,-30,
-    -50,-30,-30,-30,-30,-30,-30,-50
-]
-
-PIECE_SQUARE_TABLES = {
-    chess.PAWN: PAWN_TABLE,
-    chess.KNIGHT: KNIGHT_TABLE,
-    chess.BISHOP: BISHOP_TABLE,
-    chess.ROOK: ROOK_TABLE,
-    chess.QUEEN: QUEEN_TABLE,
-    chess.KING: KING_TABLE_MIDDLEGAME
+PST = {
+    "PAWN": [
+        [(0, 0)] * 8,
+        [(3, -10), (3, -6), (10, 10), (19, 0), (16, 14), (19, 7), (7, -5), (-5, -19)],
+        [(-9, -10), (-15, -10), (11, -10), (15, 4), (32, 4), (22, 3), (5, -6), (-22, -4)],
+        [(-4, 6), (-23, -2), (6, -8), (20, -4), (40, -13), (17, -12), (4, -10), (-8, -9)],
+        [(13, 10), (0, 5), (-13, 4), (1, -5), (11, -5), (-2, -5), (-13, 14), (5, 9)],
+        [(5, 28), (-12, 20), (-7, 21), (22, 28), (-8, 30), (-5, 7), (-15, 6), (-8, 13)],
+        [(-7, 0), (7, -11), (-3, 12), (-13, 21), (5, 25), (-16, 19), (10, 4), (-8, 7)],
+        [(0, 0)] * 8,
+    ],
+    "KNIGHT": [
+        [(-175, -96), (-92, -65), (-74, -49), (-73, -21)],
+        [(-77, -67), (-41, -54), (-27, -18), (-15, 8)],
+        [(-61, -40), (-17, -27), (6, -8), (12, 29)],
+        [(-35, -35), (8, -2), (40, 13), (49, 28)],
+        [(-34, -45), (13, -16), (44, 9), (51, 39)],
+        [(-9, -51), (22, -44), (58, -16), (53, 17)],
+        [(-67, -69), (-27, -50), (4, -51), (37, 12)],
+        [(-201, -100), (-83, -88), (-56, -56), (-26, -17)],
+    ],
+    "BISHOP": [
+        [(-53, -57), (-5, -30), (-8, -37), (-23, -12)],
+        [(-15, -37), (8, -13), (19, -17), (4, 1)],
+        [(-7, -16), (21, -1), (-5, -2), (17, 10)],
+        [(-5, -20), (11, -6), (25, 0), (39, 17)],
+        [(-12, -17), (29, -1), (22, -14), (31, 15)],
+        [(-16, -30), (6, 6), (1, 4), (11, 6)],
+        [(-17, -31), (-14, -20), (5, -1), (0, 1)],
+        [(-48, -46), (1, -42), (-14, -37), (-23, -24)],
+    ],
+    "ROOK": [
+        [(-31, -9), (-20, -13), (-14, -10), (-5, -9)],
+        [(-21, -12), (-13, -9), (-8, -1), (6, -2)],
+        [(-25, 6), (-11, -8), (-1, -2), (3, -6)],
+        [(-13, -6), (-5, 1), (-4, -9), (-6, 7)],
+        [(-27, -5), (-15, 8), (-4, 7), (3, -6)],
+        [(-22, 6), (-2, 1), (6, -7), (12, 10)],
+        [(-2, 4), (12, 5), (16, 20), (18, -5)],
+        [(-17, 18), (-19, 0), (-1, 19), (9, 13)],
+    ],
+    "QUEEN": [
+        [(3, -69), (-5, -57), (-5, -47), (4, -26)],
+        [(-3, -55), (5, -31), (8, -22), (12, -4)],
+        [(-3, -39), (6, -18), (13, -9), (7, 3)],
+        [(4, -23), (5, -3), (9, 13), (8, 24)],
+        [(0, -29), (14, -6), (12, 9), (5, 21)],
+        [(-4, -38), (10, -18), (6, -12), (8, 1)],
+        [(-5, -50), (6, -27), (10, -24), (8, -8)],
+        [(-2, -75), (-2, -52), (1, -43), (-2, -36)],
+    ],
+    "KING": [
+        [(271, 1), (327, 45), (271, 85), (198, 76)],
+        [(278, 53), (303, 100), (234, 133), (179, 135)],
+        [(195, 88), (258, 130), (169, 169), (120, 175)],
+        [(164, 103), (190, 156), (138, 172), (98, 172)],
+        [(154, 96), (179, 166), (105, 199), (70, 199)],
+        [(123, 92), (145, 172), (81, 184), (31, 191)],
+        [(88, 47), (120, 121), (65, 116), (33, 131)],
+        [(59, 11), (89, 59), (45, 73), (-1, 78)],
+    ],
 }
 
-def get_piece_square_value(piece_type, square, is_white, is_endgame=False):
-    table = PIECE_SQUARE_TABLES[piece_type]
-    
-    if piece_type == chess.KING and is_endgame:
-        table = KING_TABLE_ENDGAME
-    
-    if is_white:
-        index = square
-    else:
-        index = 63 - square
-    
-    return table[index]
 
-def is_endgame(board):
-    piece_count = len(board.piece_map())
-    queens = len(board.pieces(chess.QUEEN, chess.WHITE)) + len(board.pieces(chess.QUEEN, chess.BLACK))
-    
-    return piece_count <= 10 or queens == 0
+def _mirror_table(half_table):
+    full_table = [[(0, 0)] * 8 for _ in range(8)]
+    for rank in range(8):
+        for file in range(8):
+            mirrored_file = file if file < 4 else 7 - file
+            full_table[rank][file] = half_table[rank][mirrored_file]
+    return full_table
 
-def evaluate_position(board):
-    if board.is_checkmate():
-        if board.turn == chess.WHITE:
-            return -999999
-        else:
-            return 999999
-    
-    if board.is_stalemate() or board.is_insufficient_material():
-        return 0
-    
-    evaluation = 0
-    endgame = is_endgame(board)
-    
+
+def _flatten_grid(grid_2d):
+    output = [None] * 64
+    for rank in range(8):
+        for file in range(8):
+            output[rank * 8 + file] = grid_2d[rank][file]
+    return output
+
+
+def _build_pst():
+    name_to_type = {
+        "PAWN": chess.PAWN,
+        "KNIGHT": chess.KNIGHT,
+        "BISHOP": chess.BISHOP,
+        "ROOK": chess.ROOK,
+        "QUEEN": chess.QUEEN,
+        "KING": chess.KING,
+    }
+    pst = {}
+    pst[name_to_type["PAWN"]] = _flatten_grid(PST["PAWN"])
+    for piece_name in ["KNIGHT", "BISHOP", "ROOK", "QUEEN", "KING"]:
+        full_table = _mirror_table(PST[piece_name])
+        pst[name_to_type[piece_name]] = _flatten_grid(full_table)
+    return pst
+
+
+PST_TABLES = _build_pst()
+
+
+def _lerp(mg_val: float, eg_val: float, mg_w: float) -> float:
+    return mg_val * mg_w + eg_val * (1.0 - mg_w)
+
+
+def evaluate(board: chess.Board) -> int:
+    mg_w = tapered_eval(board)
+    score = 0.0
+
     for square in chess.SQUARES:
         piece = board.piece_at(square)
-        if piece is None:
+        if not piece:
             continue
-        
-        piece_value = PIECE_VALUES[piece.piece_type]
-        
-        positional_value = get_piece_square_value(
-            piece.piece_type, square, piece.color == chess.WHITE, endgame
-        )
-        
-        total_piece_value = piece_value + positional_value
-        
-        if piece.color == chess.WHITE:
-            evaluation += total_piece_value
-        else:
-            evaluation -= total_piece_value
-    
-    evaluation += evaluate_mobility(board)
-    evaluation += evaluate_king_safety(board)
-    
-    return evaluation
 
-def evaluate_mobility(board):
-    current_turn = board.turn
-    
-    board.turn = chess.WHITE
-    white_moves = len(list(board.legal_moves))
-    
-    board.turn = chess.BLACK
-    black_moves = len(list(board.legal_moves))
-    
-    board.turn = current_turn
-    
-    return (white_moves - black_moves) * 2
+        side = 1.0 if piece.color == chess.WHITE else -1.0
+        piece_type = piece.piece_type
 
-def evaluate_king_safety(board):
-    safety_score = 0
-    
-    white_king_square = board.king(chess.WHITE)
-    black_king_square = board.king(chess.BLACK)
-    
-    if white_king_square in [chess.G1, chess.C1]:
-        safety_score += 30
-    if black_king_square in [chess.G8, chess.C8]:
-        safety_score -= 30
-    
-    if white_king_square in [chess.D1, chess.E1, chess.F1] and not board.has_castling_rights(chess.WHITE):
-        safety_score -= 20
-    if black_king_square in [chess.D8, chess.E8, chess.F8] and not board.has_castling_rights(chess.BLACK):
-        safety_score += 20
-    
-    return safety_score
+        mg_val, eg_val = PIECE_VALUES[piece_type]
+        mat_val = _lerp(mg_val, eg_val, mg_w)
+
+        sq_idx = square if piece.color == chess.WHITE else chess.square_mirror(square)
+        mg_pst, eg_pst = PST_TABLES[piece_type][sq_idx]
+        pos_val = _lerp(mg_pst, eg_pst, mg_w)
+
+        score += side * (mat_val + pos_val)
+
+    return int(round(score))
