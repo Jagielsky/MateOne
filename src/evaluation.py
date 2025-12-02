@@ -16,7 +16,6 @@ INITIAL_COUNTS = {
 }
 TOTAL_PHASE = sum(PHASE_WEIGHTS[p] * INITIAL_COUNTS[p] for p in PHASE_WEIGHTS)
 
-
 def tapered_eval(board: chess.Board) -> float:
     current_phase = TOTAL_PHASE
     for piece_type in PHASE_WEIGHTS:
@@ -101,7 +100,6 @@ PST = {
     ],
 }
 
-
 def _mirror_table(half_table):
     full_table = [[(0, 0)] * 8 for _ in range(8)]
     for rank in range(8):
@@ -110,14 +108,12 @@ def _mirror_table(half_table):
             full_table[rank][file] = half_table[rank][mirrored_file]
     return full_table
 
-
 def _flatten_grid(grid_2d):
     output = [None] * 64
     for rank in range(8):
         for file in range(8):
             output[rank * 8 + file] = grid_2d[rank][file]
     return output
-
 
 def _build_pst():
     name_to_type = {
@@ -135,13 +131,10 @@ def _build_pst():
         pst[name_to_type[piece_name]] = _flatten_grid(full_table)
     return pst
 
-
 PST_TABLES = _build_pst()
-
 
 def _lerp(mg_val: float, eg_val: float, mg_w: float) -> float:
     return mg_val * mg_w + eg_val * (1.0 - mg_w)
-
 
 def evaluate(board: chess.Board) -> int:
     mg_w = tapered_eval(board)

@@ -1,19 +1,169 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
   <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>MateOne - chess engine</title>
-    <link rel="shortcut icon" href="{{ url_for('static', filename='img/wK.svg') }}" type="image/x-icon"/>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}"/>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
-    <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MateOne - silnik szachowy</title>
+    <link
+      rel="shortcut icon"
+      href="{{ url_for('static', filename='img/wK.svg') }}"
+      type="image/x-icon"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/chessboard-1.0.0.min.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script
+      src="https://code.jquery.com/jquery-3.7.1.js"
+      integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4="
+      crossorigin="anonymous"
+    ></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <script src="{{ url_for('static', filename='js/chessboard-1.0.0.min.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </head>
   <body>
-    <div class="container">
-      <div id="board" style="width: 600px"></div>
+    <div class="app-container">
+      <header class="top-bar">
+        <div class="logo">
+          <span>Mate<span class="highlight">One</span></span>
+        </div>
+      </header>
+      <main class="dashboard-grid">
+        <aside class="panel control-panel">
+          <div class="panel-header">
+            <i class="fa-solid fa-sliders"></i> Ustawienia
+          </div>
+          <div class="control-content">
+            <div class="control-group">
+              <button id="reset-btn" class="action-btn">
+                <i class="fa-solid fa-rotate-right"></i> Nowa Gra
+              </button>
+            </div>
+            <div class="control-group">
+              <div class="slider-header">
+                <label>Głębokość Analizy</label>
+                <div class="value-circle">
+                  <span id="depth-value" class="slider-value">4</span>
+                </div>
+              </div>
+              <div class="slider-container">
+                <input
+                  type="range"
+                  id="depth-slider"
+                  min="1"
+                  max="6"
+                  value="4"
+                  class="tech-slider"
+                  oninput="document.getElementById('depth-value').innerText = this.value"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="history-box">
+            <div class="history-header">
+              <span>#</span>
+              <span>Białe</span>
+              <span>Czarne</span>
+            </div>
+            <div id="pgn-display" class="pgn-content"></div>
+          </div>
+        </aside>
+        <section class="board-section">
+          <div class="board-wrapper">
+            <div id="board" style="width: 600px"></div>
+            <div class="eval-gauge-container">
+              <div class="eval-gauge-fill" id="eval-gauge-fill"></div>
+            </div>
+          </div>
+        </section>
+        <aside class="panel analytics-panel">
+          <div id="analytics-overlay" class="analytics-blur-overlay">
+            <div class="big-spinner"></div>
+            <span class="overlay-text">Analiza...</span>
+          </div>
+          <div class="panel-header">
+            <i class="fa-solid fa-chart-line"></i> Analiza Silnika
+          </div>
+          <div class="analytics-content">
+            <div class="score-card">
+              <div class="score-label">Ocena Pozycji</div>
+              <div class="score-value" id="main-score">0.00</div>
+              <div class="score-trend" id="score-trend">Równowaga</div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fa-solid fa-stopwatch"></i>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-val" id="stat-time">0.00s</span>
+                  <span class="stat-lbl">Czas</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fa-solid fa-diagram-project"></i>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-val" id="stat-nodes">0</span>
+                  <span class="stat-lbl">Węzły</span>
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-bolt"></i></div>
+                <div class="stat-data">
+                  <span class="stat-val" id="stat-nps">0</span>
+                  <span
+                    class="stat-lbl"
+                    title="Nodes Per Second - Szybkość obliczeń"
+                    >NPS (Poz/s)</span
+                  >
+                </div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-icon">
+                  <i class="fa-solid fa-scale-balanced"></i>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-val" id="stat-material">0</span>
+                  <span class="stat-lbl">Materiał</span>
+                </div>
+              </div>
+            </div>
+            <div class="pv-box">
+              <div class="panel-header small">
+                <i class="fa-solid fa-chess-board"></i> Linia Silnika
+              </div>
+              <div class="pv-content" id="pv-display">
+                <span
+                  class="placeholder"
+                  style="color: var(--text-muted); font-style: italic"
+                  >Najlepsza sekwencja ruchów...</span
+                >
+              </div>
+            </div>
+            <div class="chart-box">
+              <div class="chart-title">Historia Przewagi</div>
+              <div style="flex: 1; position: relative">
+                <canvas id="evalChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </main>
     </div>
     <script>
       var pieceUrl = "{{ url_for('static', filename='img/') }}";

@@ -1,5 +1,150 @@
 var board = null;
 var game = new Chess();
+var evalChart = null;
+var moveHistory = [];
+var evalHistory = [];
+
+function initChart() {
+  const ctx = document.getElementById("evalChart").getContext("2d");
+
+  evalChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [
+        {
+          label: "Ocena",
+          data: [],
+          borderColor: "#d4a373",
+          borderWidth: 2,
+          fill: true,
+          pointRadius: 0,
+          pointHitRadius: 20,
+          pointHoverRadius: 6,
+          pointBackgroundColor: "#d4a373",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          tension: 0.4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(18, 18, 18, 0.95)",
+          titleColor: "#d4a373",
+          bodyColor: "#fff",
+          borderColor: "#333",
+          borderWidth: 1,
+          displayColors: false,
+          callbacks: {
+            label: function (context) {
+              return "Ocena: " + context.parsed.y.toFixed(2);
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: {
+            display: false,
+            drawBorder: false,
+          },
+          ticks: {
+            color: "#888",
+            maxTicksLimit: 10,
+            font: { size: 10 },
+          },
+        },
+        y: {
+          grid: {
+            color: function (context) {
+              if (context.tick.value === 0) return "rgba(255, 255, 255, 0.3)";
+              return "rgba(255, 255, 255, 0.05)";
+            },
+            drawBorder: false,
+          },
+          ticks: {
+            color: "#888",
+            callback: function (value) {
+              return value.toFixed(1);
+            },
+            font: { size: 10 },
+          },
+        },
+      },
+      animation: {
+        duration: 400,
+        easing: "easeOutQuart",
+      },
+    },
+    plugins: [
+      {
+        id: "evalGradient",
+        beforeRender: function (chart) {
+          const ctx = chart.ctx;
+          const chartArea = chart.chartArea;
+          const yScale = chart.scales.y;
+
+          if (!chartArea) return;
+
+          const yZero = yScale.getPixelForValue(0);
+
+          const gradient = ctx.createLinearGradient(
+            0,
+            chartArea.top,
+            0,
+            chartArea.bottom
+          );
+
+          let stop =
+            (yZero - chartArea.top) / (chartArea.bottom - chartArea.top);
+
+          stop = Math.max(0, Math.min(1, stop));
+
+          gradient.addColorStop(0, "rgba(255, 255, 255, 0.3)");
+          gradient.addColorStop(stop, "rgba(255, 255, 255, 0.02)");
+
+          gradient.addColorStop(stop, "rgba(0, 0, 0, 0.3)");
+          gradient.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+
+          chart.data.datasets[0].backgroundColor = gradient;
+        },
+      },
+    ],
+  });
+}
+
+function updateChart(moveNumber, evaluation) {
+  if (!evalChart) return;
+
+  const clampedEval = Math.max(-100, Math.min(100, evaluation));
+
+  evalChart.data.labels.push(moveNumber);
+  evalChart.data.datasets[0].data.push(clampedEval);
+
+  if (evalChart.data.labels.length > 50) {
+    evalChart.data.labels.shift();
+    evalChart.data.datasets[0].data.shift();
+  }
+
+  evalChart.update();
+}
+
+function resetChart() {
+  if (!evalChart) return;
+  evalChart.data.labels = [];
+  evalChart.data.datasets[0].data = [];
+  evalChart.update();
+}
 
 function onDragStart(source, piece, position, orientation) {
   if (game.game_over()) return false;
@@ -14,69 +159,139 @@ function onDrop(source, target) {
   });
 
   if (move === null) return "snapback";
+
+  updatePGN();
+  updateMaterialBalance();
 }
 
-function updateEvaluationBar(evaluation) {
-  const evalBar = document.getElementById("eval-bar");
-  const evalText = document.getElementById("eval-text");
+function updatePGN() {
+  const pgnEl = document.getElementById("pgn-display");
+  const history = game.history();
+  let html = "";
 
-  if (!evalBar || !evalText) return;
+  for (let i = 0; i < history.length; i += 2) {
+    const moveNum = Math.floor(i / 2) + 1;
+    const whiteMove = history[i];
+    const blackMove = history[i + 1] || "";
 
-  const clampedEval = Math.max(-10, Math.min(10, evaluation));
+    html += `<div class="pgn-move-row">
+      <span class="pgn-move-num">${moveNum}.</span>
+      <span class="pgn-move-white">${whiteMove}</span>
+      <span class="pgn-move-black">${blackMove}</span>
+    </div>`;
+  }
 
-  const percentage = 50 + (clampedEval / 10) * 40;
+  pgnEl.innerHTML = html;
+  pgnEl.scrollTop = pgnEl.scrollHeight;
+}
 
-  const whiteBar = evalBar.querySelector(".eval-white");
-  whiteBar.style.height = `${percentage}%`;
+function updateMaterialBalance() {
+  const boardState = game.board();
+  let whiteMaterial = 0;
+  let blackMaterial = 0;
 
-  const evalDisplay =
-    evaluation > 0 ? `+${evaluation.toFixed(2)}` : evaluation.toFixed(2);
-  evalText.textContent = evalDisplay;
+  const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
-  if (evaluation > 0.5) {
-    evalText.style.color = "#4CAF50";
-  } else if (evaluation < -0.5) {
-    evalText.style.color = "#f44336";
+  for (let row of boardState) {
+    for (let piece of row) {
+      if (piece) {
+        if (piece.color === "w") {
+          whiteMaterial += pieceValues[piece.type];
+        } else {
+          blackMaterial += pieceValues[piece.type];
+        }
+      }
+    }
+  }
+
+  const balance = whiteMaterial - blackMaterial;
+  const balanceEl = document.getElementById("stat-material");
+
+  if (balance > 0) {
+    balanceEl.textContent = `+${balance}`;
+    balanceEl.style.color = "#4caf50";
+  } else if (balance < 0) {
+    balanceEl.textContent = `${balance}`;
+    balanceEl.style.color = "#f44336";
   } else {
-    evalText.style.color = "#000";
+    balanceEl.textContent = "0";
+    balanceEl.style.color = "#e0e0e0";
   }
 }
 
-function showEngineInfo(data) {
-  let infoDiv = document.getElementById("engine-info");
-  if (!infoDiv) {
-    return;
+function updateUI(data) {
+  const scoreEl = document.getElementById("main-score");
+  const trendEl = document.getElementById("score-trend");
+  const gaugeFill = document.getElementById("eval-gauge-fill");
+
+  let evalVal = 0;
+  if (data.evaluation !== undefined) {
+    evalVal = data.evaluation;
+    const sign = evalVal > 0 ? "+" : "";
+    scoreEl.textContent = `${sign}${evalVal.toFixed(2)}`;
+
+    if (evalVal > 0.5) {
+      trendEl.textContent = "Przewaga Białych";
+      trendEl.style.color = "#4caf50";
+      scoreEl.style.color = "#4caf50";
+    } else if (evalVal < -0.5) {
+      trendEl.textContent = "Przewaga Czarnych";
+      trendEl.style.color = "#f44336";
+      scoreEl.style.color = "#f44336";
+    } else {
+      trendEl.textContent = "Równowaga";
+      trendEl.style.color = "#a0a0a0";
+      scoreEl.style.color = "#e0e0e0";
+    }
+
+    const clampedEval = Math.max(-5, Math.min(5, evalVal));
+    const percentage = 50 + (clampedEval / 5) * 50;
+    gaugeFill.style.height = `${percentage}%`;
+
+    updateChart(game.history().length, evalVal);
   }
 
-  let infoHTML = '<h3 style="margin-bottom: 5px;">Information</h3>';
+  if (data.search_time)
+    document.getElementById("stat-time").textContent = `${data.search_time}s`;
+  if (data.nodes)
+    document.getElementById("stat-nodes").textContent = formatNumber(
+      data.nodes
+    );
+  if (data.nps)
+    document.getElementById("stat-nps").textContent = formatNumber(data.nps);
 
-  if (data.error) {
-    infoHTML += `<p style="color: red;"><strong>Error:</strong> ${data.error}</p>`;
+  const pvEl = document.getElementById("pv-display");
+  if (data.pv) {
+    const moves = data.pv.split(" ");
+    let html = "";
+    moves.forEach((move, index) => {
+      const className = index === 0 ? "pv-chip current" : "pv-chip";
+      html += `<span class="${className}">${move}</span>`;
+    });
+    pvEl.innerHTML = html;
   } else {
-    if (data.move) {
-      infoHTML += `<p><strong>Engine Move:</strong> ${data.move}</p>`;
-    }
-    if (data.evaluation !== undefined) {
-      updateEvaluationBar(data.evaluation);
-    }
-    if (data.search_time) {
-      infoHTML += `<p><strong>Search Time:</strong> ${data.search_time}s</p>`;
-    }
-    if (data.game_over) {
-      infoHTML += `<p style="color: red;"><strong>Game Over!</strong></p>`;
-    }
+    pvEl.innerHTML =
+      '<span class="placeholder" style="color: var(--text-muted); font-style: italic;">Brak danych...</span>';
   }
 
-  infoDiv.innerHTML = infoHTML;
+  document.getElementById("analytics-overlay").classList.remove("active");
+}
+
+function formatNumber(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+  if (num >= 1000) return (num / 1000).toFixed(1) + "k";
+  return num.toString();
 }
 
 function onSnapEnd() {
   board.position(game.fen());
+  updatePGN();
+  updateMaterialBalance();
 
   const depthSlider = document.getElementById("depth-slider");
   const currentDepth = depthSlider ? parseInt(depthSlider.value) : 4;
 
-  showEngineInfo({ move: "thinking..." });
+  document.getElementById("analytics-overlay").classList.add("active");
 
   fetch("/fen", {
     method: "POST",
@@ -89,14 +304,30 @@ function onSnapEnd() {
     .then((response) => response.json())
     .then((data) => {
       if (data.error) {
-        showEngineInfo(data);
+        console.error(data.error);
+        document.getElementById("analytics-overlay").classList.remove("active");
         return;
       }
 
-      game.load(data.fen);
-      board.position(data.fen);
+      if (data.move) {
+        const from = data.move.substring(0, 2);
+        const to = data.move.substring(2, 4);
+        const promotion =
+          data.move.length > 4 ? data.move.substring(4, 5) : undefined;
 
-      showEngineInfo(data);
+        game.move({ from: from, to: to, promotion: promotion || "q" });
+      } else {
+        game.load(data.fen);
+      }
+
+      board.position(game.fen());
+      updatePGN();
+      updateMaterialBalance();
+      updateUI(data);
+    })
+    .catch((err) => {
+      console.error("Error:", err);
+      document.getElementById("analytics-overlay").classList.remove("active");
     });
 }
 
@@ -107,171 +338,46 @@ var config = {
   onDragStart: onDragStart,
   onDrop: onDrop,
   onSnapEnd: onSnapEnd,
+  moveSpeed: 300,
+  snapbackSpeed: 300,
+  snapSpeed: 100,
 };
 
 board = Chessboard("board", config);
 
 document.addEventListener("DOMContentLoaded", function () {
-  const container = document.querySelector(".container");
+  initChart();
 
-  const gameContainer = document.createElement("div");
-  gameContainer.style.display = "flex";
-  gameContainer.style.alignItems = "flex-start";
-  gameContainer.style.gap = "20px";
-  gameContainer.style.justifyContent = "center";
+  const resetBtn = document.getElementById("reset-btn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", function () {
+      game.reset();
+      board.start();
+      resetChart();
+      updatePGN();
+      updateMaterialBalance();
 
-  const leftPanel = document.createElement("div");
-  leftPanel.style.display = "flex";
-  leftPanel.style.flexDirection = "column";
-  leftPanel.style.gap = "15px";
-  leftPanel.style.minWidth = "250px";
-  leftPanel.style.maxWidth = "250px";
+      document.getElementById("main-score").textContent = "0.00";
+      document.getElementById("main-score").style.color = "#e0e0e0";
+      document.getElementById("score-trend").textContent = "Start";
+      document.getElementById("score-trend").style.color = "#a0a0a0";
+      document.getElementById("stat-time").textContent = "0.00s";
+      document.getElementById("stat-nodes").textContent = "0";
+      document.getElementById("stat-nps").textContent = "0";
+      document.getElementById("stat-material").textContent = "0";
+      document.getElementById("pv-display").textContent =
+        "Oczekiwanie na ruch...";
+      document.getElementById("eval-gauge-fill").style.height = "50%";
+    });
+  }
 
-  const resetButton = document.createElement("button");
-  resetButton.textContent = "New Game";
-  resetButton.style.padding = "10px 20px";
-  resetButton.style.fontSize = "16px";
-  resetButton.style.backgroundColor = "#4CAF50";
-  resetButton.style.color = "white";
-  resetButton.style.border = "none";
-  resetButton.style.borderRadius = "5px";
-  resetButton.style.cursor = "pointer";
-  resetButton.style.whiteSpace = "nowrap";
+  const depthSlider = document.getElementById("depth-slider");
+  const depthValue = document.getElementById("depth-value");
+  if (depthSlider && depthValue) {
+    depthValue.textContent = depthSlider.value;
 
-  resetButton.addEventListener("click", function () {
-    game.reset();
-    board.start();
-
-    updateEvaluationBar(0);
-
-    const infoDiv = document.getElementById("engine-info");
-    if (infoDiv) {
-      infoDiv.innerHTML =
-        '<h3 style="margin-bottom: 5px;">Information</h3><p>Make a move to see analysis</p>';
-    }
-  });
-
-  const depthContainer = document.createElement("div");
-  depthContainer.style.padding = "10px";
-  depthContainer.style.backgroundColor = "#f0f0f0";
-  depthContainer.style.border = "1px solid #ccc";
-  depthContainer.style.borderRadius = "5px";
-
-  const depthLabel = document.createElement("label");
-  depthLabel.textContent = "Engine Depth: ";
-  depthLabel.style.fontWeight = "bold";
-  depthLabel.style.display = "block";
-  depthLabel.style.marginBottom = "5px";
-
-  const depthSlider = document.createElement("input");
-  depthSlider.type = "range";
-  depthSlider.id = "depth-slider";
-  depthSlider.min = "1";
-  depthSlider.max = "6";
-  depthSlider.value = "4";
-  depthSlider.style.width = "100%";
-  depthSlider.style.marginBottom = "5px";
-
-  const depthValue = document.createElement("span");
-  depthValue.id = "depth-value";
-  depthValue.textContent = "4";
-  depthValue.style.fontWeight = "bold";
-  depthValue.style.color = "#333";
-
-  depthSlider.addEventListener("input", function () {
-    depthValue.textContent = this.value;
-  });
-
-  depthContainer.appendChild(depthLabel);
-  depthContainer.appendChild(depthSlider);
-  depthContainer.appendChild(document.createTextNode("Current: "));
-  depthContainer.appendChild(depthValue);
-
-  const engineInfoDiv = document.createElement("div");
-  engineInfoDiv.id = "engine-info";
-  engineInfoDiv.style.padding = "10px";
-  engineInfoDiv.style.backgroundColor = "#f0f0f0";
-  engineInfoDiv.style.border = "1px solid #ccc";
-  engineInfoDiv.style.borderRadius = "5px";
-  engineInfoDiv.style.minHeight = "150px";
-  engineInfoDiv.innerHTML =
-    '<h3 style="margin-bottom: 5px;">Information</h3><p>Make a move to see analysis</p>';
-
-  const evalBarContainer = document.createElement("div");
-  evalBarContainer.style.display = "flex";
-  evalBarContainer.style.alignItems = "center";
-  evalBarContainer.style.gap = "10px";
-  evalBarContainer.style.height = "596px";
-
-  const evalBarWrapper = document.createElement("div");
-  evalBarWrapper.style.position = "relative";
-  evalBarWrapper.style.width = "30px";
-  evalBarWrapper.style.height = "592px";
-  evalBarWrapper.style.border = "2px solid #333";
-  evalBarWrapper.style.borderRadius = "3px";
-  evalBarWrapper.style.overflow = "hidden";
-
-  const evalBlack = document.createElement("div");
-  evalBlack.className = "eval-black";
-  evalBlack.style.position = "absolute";
-  evalBlack.style.top = "0";
-  evalBlack.style.left = "0";
-  evalBlack.style.width = "100%";
-  evalBlack.style.height = "100%";
-  evalBlack.style.backgroundColor = "#000";
-
-  const evalWhite = document.createElement("div");
-  evalWhite.className = "eval-white";
-  evalWhite.style.position = "absolute";
-  evalWhite.style.bottom = "0";
-  evalWhite.style.left = "0";
-  evalWhite.style.width = "100%";
-  evalWhite.style.height = "50%";
-  evalWhite.style.backgroundColor = "#fff";
-  evalWhite.style.transition = "height 0.3s ease";
-
-  const centerLine = document.createElement("div");
-  centerLine.style.position = "absolute";
-  centerLine.style.top = "50%";
-  centerLine.style.left = "0";
-  centerLine.style.right = "0";
-  centerLine.style.height = "1px";
-  centerLine.style.backgroundColor = "#999";
-  centerLine.style.transform = "translateY(-50%)";
-
-  evalBarWrapper.id = "eval-bar";
-  evalBarWrapper.appendChild(evalBlack);
-  evalBarWrapper.appendChild(evalWhite);
-  evalBarWrapper.appendChild(centerLine);
-
-  const evalText = document.createElement("div");
-  evalText.id = "eval-text";
-  evalText.textContent = "0.00";
-  evalText.style.fontWeight = "bold";
-  evalText.style.fontSize = "16px";
-  evalText.style.color = "#000";
-  evalText.style.minWidth = "50px";
-  evalText.style.textAlign = "left";
-
-  evalBarContainer.appendChild(evalBarWrapper);
-  evalBarContainer.appendChild(evalText);
-
-  leftPanel.appendChild(resetButton);
-  leftPanel.appendChild(depthContainer);
-  leftPanel.appendChild(engineInfoDiv);
-
-  const boardContainer = document.createElement("div");
-  boardContainer.style.width = "600px";
-  boardContainer.style.height = "600px";
-  boardContainer.style.flexShrink = "0";
-
-  const boardElement = document.getElementById("board");
-  boardContainer.appendChild(boardElement);
-
-  gameContainer.appendChild(leftPanel);
-  gameContainer.appendChild(boardContainer);
-  gameContainer.appendChild(evalBarContainer);
-
-  container.innerHTML = "";
-  container.appendChild(gameContainer);
+    depthSlider.addEventListener("input", function () {
+      depthValue.textContent = this.value;
+    });
+  }
 });
