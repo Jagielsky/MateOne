@@ -1,40 +1,33 @@
 var board = null;
 var game = new Chess();
 var evalChart = null;
-var moveHistory = [];
-var evalHistory = [];
+var statsHistory = [];
 
 function initChart() {
   const ctx = document.getElementById("evalChart").getContext("2d");
-
   evalChart = new Chart(ctx, {
     type: "line",
     data: {
       labels: [],
-      datasets: [
-        {
-          label: "Ocena",
-          data: [],
-          borderColor: "#d4a373",
-          borderWidth: 2,
-          fill: true,
-          pointRadius: 0,
-          pointHitRadius: 20,
-          pointHoverRadius: 6,
-          pointBackgroundColor: "#d4a373",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-          tension: 0.4,
-        },
-      ],
+      datasets: [{
+        label: "Ocena",
+        data: [],
+        borderColor: "#d4a373",
+        borderWidth: 2,
+        fill: true,
+        pointRadius: 0,
+        pointHitRadius: 20,
+        pointHoverRadius: 6,
+        pointBackgroundColor: "#d4a373",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        tension: 0.4,
+      }],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: {
-        mode: "index",
-        intersect: false,
-      },
+      interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -54,15 +47,8 @@ function initChart() {
       scales: {
         x: {
           display: true,
-          grid: {
-            display: false,
-            drawBorder: false,
-          },
-          ticks: {
-            color: "#888",
-            maxTicksLimit: 10,
-            font: { size: 10 },
-          },
+          grid: { display: false, drawBorder: false },
+          ticks: { color: "#888", maxTicksLimit: 10, font: { size: 10 } },
         },
         y: {
           grid: {
@@ -74,92 +60,83 @@ function initChart() {
           },
           ticks: {
             color: "#888",
-            callback: function (value) {
-              return value.toFixed(1);
-            },
+            callback: function (value) { return value.toFixed(1); },
             font: { size: 10 },
           },
         },
       },
-      animation: {
-        duration: 400,
-        easing: "easeOutQuart",
-      },
+      animation: { duration: 400, easing: "easeOutQuart" },
     },
-    plugins: [
-      {
-        id: "evalGradient",
-        beforeRender: function (chart) {
-          const ctx = chart.ctx;
-          const chartArea = chart.chartArea;
-          const yScale = chart.scales.y;
+    plugins: [{
+      id: "evalGradient",
+      beforeRender: function (chart) {
+        const ctx = chart.ctx;
+        const chartArea = chart.chartArea;
+        const yScale = chart.scales.y;
+        if (!chartArea) return;
 
-          if (!chartArea) return;
+        const yZeroPixel = yScale.getPixelForValue(0);
+        const totalHeight = chartArea.bottom - chartArea.top;
+        const stop = Math.max(0, Math.min(1, (yZeroPixel - chartArea.top) / totalHeight));
 
-          const yZero = yScale.getPixelForValue(0);
-
-          const gradient = ctx.createLinearGradient(
-            0,
-            chartArea.top,
-            0,
-            chartArea.bottom
-          );
-
-          let stop =
-            (yZero - chartArea.top) / (chartArea.bottom - chartArea.top);
-
-          stop = Math.max(0, Math.min(1, stop));
-
-          gradient.addColorStop(0, "rgba(255, 255, 255, 0.3)");
-          gradient.addColorStop(stop, "rgba(255, 255, 255, 0.02)");
-
-          gradient.addColorStop(stop, "rgba(0, 0, 0, 0.3)");
-          gradient.addColorStop(1, "rgba(0, 0, 0, 0.6)");
-
-          chart.data.datasets[0].backgroundColor = gradient;
-        },
+        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+        const epsilon = 0.0001;
+        gradient.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+        gradient.addColorStop(Math.max(0, stop - epsilon), "rgba(255, 255, 255, 0.4)");
+        gradient.addColorStop(Math.min(1, stop + epsilon), "rgba(0, 0, 0, 0.4)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0.4)");
+        chart.data.datasets[0].backgroundColor = gradient;
       },
-    ],
+    }],
   });
 }
 
 function updateChart(moveNumber, evaluation) {
   if (!evalChart) return;
-
   const clampedEval = Math.max(-100, Math.min(100, evaluation));
-
   evalChart.data.labels.push(moveNumber);
   evalChart.data.datasets[0].data.push(clampedEval);
-
   if (evalChart.data.labels.length > 50) {
     evalChart.data.labels.shift();
     evalChart.data.datasets[0].data.shift();
   }
-
   evalChart.update();
 }
 
 function resetChart() {
   if (!evalChart) return;
+  statsHistory = [];
   evalChart.data.labels = [];
   evalChart.data.datasets[0].data = [];
   evalChart.update();
 }
 
-function onDragStart(source, piece, position, orientation) {
+function resetUI() {
+  document.getElementById("main-score").textContent = "0.00";
+  document.getElementById("main-score").style.color = "#e0e0e0";
+  document.getElementById("score-trend").textContent = "Równowaga";
+  document.getElementById("score-trend").style.color = "#a0a0a0";
+  document.getElementById("eval-gauge-fill").style.height = "50%";
+  document.getElementById("stat-time").textContent = "0.00s";
+  document.getElementById("stat-nodes").textContent = "0";
+  document.getElementById("stat-nps").textContent = "0";
+  document.getElementById("stat-tt-hitrate").textContent = "0%";
+  document.getElementById("stat-tt-hashfull-pct").textContent = "0%";
+  document.getElementById("stat-tt-hashfull-bar").style.width = "0%";
+  document.getElementById("stat-tt-hits").textContent = "0";
+  document.getElementById("stat-tt-stores").textContent = "0";
+  document.getElementById("stat-material").textContent = "0";
+  document.getElementById("pv-display").innerHTML = '';
+}
+
+function onDragStart(source, piece) {
   if (game.game_over()) return false;
   if (piece[0] !== "w") return false;
 }
 
 function onDrop(source, target) {
-  var move = game.move({
-    from: source,
-    to: target,
-    promotion: "q",
-  });
-
+  var move = game.move({ from: source, to: target, promotion: "q" });
   if (move === null) return "snapback";
-
   updatePGN();
   updateMaterialBalance();
 }
@@ -168,19 +145,16 @@ function updatePGN() {
   const pgnEl = document.getElementById("pgn-display");
   const history = game.history();
   let html = "";
-
   for (let i = 0; i < history.length; i += 2) {
     const moveNum = Math.floor(i / 2) + 1;
     const whiteMove = history[i];
     const blackMove = history[i + 1] || "";
-
     html += `<div class="pgn-move-row">
       <span class="pgn-move-num">${moveNum}.</span>
       <span class="pgn-move-white">${whiteMove}</span>
       <span class="pgn-move-black">${blackMove}</span>
     </div>`;
   }
-
   pgnEl.innerHTML = html;
   pgnEl.scrollTop = pgnEl.scrollHeight;
 }
@@ -189,24 +163,17 @@ function updateMaterialBalance() {
   const boardState = game.board();
   let whiteMaterial = 0;
   let blackMaterial = 0;
-
   const pieceValues = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
-
   for (let row of boardState) {
     for (let piece of row) {
       if (piece) {
-        if (piece.color === "w") {
-          whiteMaterial += pieceValues[piece.type];
-        } else {
-          blackMaterial += pieceValues[piece.type];
-        }
+        if (piece.color === "w") whiteMaterial += pieceValues[piece.type];
+        else blackMaterial += pieceValues[piece.type];
       }
     }
   }
-
   const balance = whiteMaterial - blackMaterial;
   const balanceEl = document.getElementById("stat-material");
-
   if (balance > 0) {
     balanceEl.textContent = `+${balance}`;
     balanceEl.style.color = "#4caf50";
@@ -219,14 +186,13 @@ function updateMaterialBalance() {
   }
 }
 
-function updateUI(data) {
+function updateUI(data, skipHistorySave) {
   const scoreEl = document.getElementById("main-score");
   const trendEl = document.getElementById("score-trend");
   const gaugeFill = document.getElementById("eval-gauge-fill");
 
-  let evalVal = 0;
   if (data.evaluation !== undefined) {
-    evalVal = data.evaluation;
+    const evalVal = data.evaluation;
     const sign = evalVal > 0 ? "+" : "";
     scoreEl.textContent = `${sign}${evalVal.toFixed(2)}`;
 
@@ -248,17 +214,22 @@ function updateUI(data) {
     const percentage = 50 + (clampedEval / 5) * 50;
     gaugeFill.style.height = `${percentage}%`;
 
-    updateChart(game.history().length, evalVal);
+    if (!skipHistorySave) {
+      updateChart(game.history().length, evalVal);
+    }
   }
 
-  if (data.search_time)
-    document.getElementById("stat-time").textContent = `${data.search_time}s`;
-  if (data.nodes)
-    document.getElementById("stat-nodes").textContent = formatNumber(
-      data.nodes
-    );
-  if (data.nps)
-    document.getElementById("stat-nps").textContent = formatNumber(data.nps);
+  if (data.search_time) document.getElementById("stat-time").textContent = `${data.search_time}s`;
+  if (data.nodes) document.getElementById("stat-nodes").textContent = formatNumber(data.nodes);
+  if (data.nps) document.getElementById("stat-nps").textContent = formatNumber(data.nps);
+  if (data.tt_hit_rate !== undefined) document.getElementById("stat-tt-hitrate").textContent = `${data.tt_hit_rate}%`;
+  if (data.tt_hashfull !== undefined) {
+    const hashfullPct = (data.tt_hashfull / 10).toFixed(1);
+    document.getElementById("stat-tt-hashfull-pct").textContent = `${hashfullPct}%`;
+    document.getElementById("stat-tt-hashfull-bar").style.width = `${hashfullPct}%`;
+  }
+  if (data.tt_hits !== undefined) document.getElementById("stat-tt-hits").textContent = formatNumber(data.tt_hits);
+  if (data.tt_stores !== undefined) document.getElementById("stat-tt-stores").textContent = formatNumber(data.tt_stores);
 
   const pvEl = document.getElementById("pv-display");
   if (data.pv) {
@@ -270,8 +241,21 @@ function updateUI(data) {
     });
     pvEl.innerHTML = html;
   } else {
-    pvEl.innerHTML =
-      '<span class="placeholder" style="color: var(--text-muted); font-style: italic;">Brak danych...</span>';
+    pvEl.innerHTML = '<span class="placeholder" style="color: var(--text-muted); font-style: italic;">Brak danych...</span>';
+  }
+
+  if (!skipHistorySave) {
+    statsHistory.push({
+      evaluation: data.evaluation,
+      search_time: data.search_time,
+      nodes: data.nodes,
+      nps: data.nps,
+      tt_hit_rate: data.tt_hit_rate,
+      tt_hashfull: data.tt_hashfull,
+      tt_hits: data.tt_hits,
+      tt_stores: data.tt_stores,
+      pv: data.pv
+    });
   }
 
   document.getElementById("analytics-overlay").classList.remove("active");
@@ -296,10 +280,7 @@ function onSnapEnd() {
   fetch("/fen", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      fen: game.fen(),
-      depth: currentDepth,
-    }),
+    body: JSON.stringify({ fen: game.fen(), depth: currentDepth }),
   })
     .then((response) => response.json())
     .then((data) => {
@@ -312,9 +293,7 @@ function onSnapEnd() {
       if (data.move) {
         const from = data.move.substring(0, 2);
         const to = data.move.substring(2, 4);
-        const promotion =
-          data.move.length > 4 ? data.move.substring(4, 5) : undefined;
-
+        const promotion = data.move.length > 4 ? data.move.substring(4, 5) : undefined;
         game.move({ from: from, to: to, promotion: promotion || "q" });
       } else {
         game.load(data.fen);
@@ -345,39 +324,46 @@ var config = {
 
 board = Chessboard("board", config);
 
+function resizeBoard() {
+  if (board && typeof board.resize === "function") {
+    board.resize();
+  }
+}
+
+window.addEventListener("resize", resizeBoard);
+
 document.addEventListener("DOMContentLoaded", function () {
   initChart();
+  resizeBoard();
 
-  const resetBtn = document.getElementById("reset-btn");
-  if (resetBtn) {
-    resetBtn.addEventListener("click", function () {
-      game.reset();
-      board.start();
-      resetChart();
-      updatePGN();
-      updateMaterialBalance();
+  document.getElementById("reset-btn").addEventListener("click", function () {
+    game.reset();
+    board.position("start");
+    resizeBoard();
+    resetChart();
+    updatePGN();
+    updateMaterialBalance();
+    resetUI();
+    document.getElementById("score-trend").textContent = "Start";
+  });
 
-      document.getElementById("main-score").textContent = "0.00";
-      document.getElementById("main-score").style.color = "#e0e0e0";
-      document.getElementById("score-trend").textContent = "Start";
-      document.getElementById("score-trend").style.color = "#a0a0a0";
-      document.getElementById("stat-time").textContent = "0.00s";
-      document.getElementById("stat-nodes").textContent = "0";
-      document.getElementById("stat-nps").textContent = "0";
-      document.getElementById("stat-material").textContent = "0";
-      document.getElementById("pv-display").textContent =
-        "Oczekiwanie na ruch...";
-      document.getElementById("eval-gauge-fill").style.height = "50%";
-    });
-  }
+
 
   const depthSlider = document.getElementById("depth-slider");
   const depthValue = document.getElementById("depth-value");
   if (depthSlider && depthValue) {
     depthValue.textContent = depthSlider.value;
-
+    const updateSliderProgress = (slider) => {
+      const min = parseInt(slider.min);
+      const max = parseInt(slider.max);
+      const val = parseInt(slider.value);
+      const progress = ((val - min) / (max - min)) * 100;
+      slider.style.backgroundSize = progress + "% 100%";
+    };
+    updateSliderProgress(depthSlider);
     depthSlider.addEventListener("input", function () {
       depthValue.textContent = this.value;
+      updateSliderProgress(this);
     });
   }
 });

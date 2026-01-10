@@ -2,6 +2,8 @@ import chess
 import time
 from src.evaluation import evaluate
 from src.negamax import search
+from src.transposition import TT
+
 
 def get_move(fen, depth=4):
     try:
@@ -46,6 +48,16 @@ def get_move(fen, depth=4):
 
         nps = int(stats["nodes"] / t_search) if t_search > 0 else 0
 
+        tt_stats = TT.stats()
+        hit_rate = (
+            round((tt_stats["hits"] / max(1, tt_stats["probes"])) * 100, 1)
+            if tt_stats["probes"] > 0
+            else 0.0
+        )
+
+        iterations = stats.get("iterations", [])
+        final_depth = stats.get("final_depth", depth)
+
         return {
             "fen": board.fen(),
             "move": str(best_move),
@@ -53,8 +65,14 @@ def get_move(fen, depth=4):
             "search_time": round(t_search, 2),
             "nodes": stats["nodes"],
             "nps": nps,
-            "depth": depth,
+            "depth": final_depth,
             "pv": pv_str,
+            "tt_hits": tt_stats["hits"],
+            "tt_stores": tt_stats["stores"],
+            "tt_collisions": tt_stats["collisions"],
+            "tt_hashfull": tt_stats["hashfull"],
+            "tt_hit_rate": hit_rate,
+            "iterations": iterations,
         }
 
     except Exception as e:
