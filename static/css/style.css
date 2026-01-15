@@ -359,7 +359,6 @@ body {
   box-sizing: border-box;
 }
 
-/* chessboard.js generates this element; force it to fill our square */
 #board .board-b72b1 {
   width: 100% !important;
   height: 100% !important;
@@ -423,7 +422,6 @@ body {
   height: 100%;
 }
 
-/* Sekcja górna - galeria */
 .gallery-big {
   grid-column: 1;
   grid-row: 1;
@@ -457,7 +455,6 @@ body {
   min-height: 80px;
 }
 
-/* Sekcja środkowa 1 - dwa prostokąty */
 .mid-rect-1,
 .mid-rect-2 {
   grid-column: 1 / -1;
@@ -468,7 +465,6 @@ body {
   min-height: 100px;
 }
 
-/* Sekcja środkowa 2 - trzy kolumny */
 .triple-container {
   grid-column: 1 / -1;
   display: grid;
@@ -488,7 +484,6 @@ body {
   gap: 12px;
 }
 
-/* Sekcja dolna - duży kontener */
 .footer-big {
   grid-column: 1 / -1;
   background: var(--bg-element);
